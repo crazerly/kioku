@@ -6,29 +6,20 @@ from collections import defaultdict
 
 from windows.study import StudyWindow
 from windows.browse import BrowseWindow
+from media import copy_media_file
 
-try:
-    from PySide6.QtWidgets import (
-        QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSpacerItem,
-        QSizePolicy, QTreeWidget, QTreeWidgetItem, QPushButton, QDialog,
-        QHeaderView, QToolButton, QMenu, QInputDialog, QMessageBox,
-        QFormLayout, QLineEdit, QLabel, QComboBox, QScrollArea, QTextEdit,
-        QGroupBox, QSplitter
-    )
-    from PySide6.QtCore import Qt, QSize
-    from PySide6.QtGui import QFont, QBrush, QColor, QAction, QCursor, QIcon
-    QT_BACKEND = "PySide6"
-except Exception:
-    from PyQt5.QtWidgets import (
-        QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSpacerItem,
-        QSizePolicy, QTreeWidget, QTreeWidgetItem, QPushButton, QDialog,
-        QHeaderView, QToolButton, QMenu, QInputDialog, QMessageBox,
-        QFormLayout, QLineEdit, QLabel, QComboBox, QScrollArea, QTextEdit,
-        QGroupBox, QSplitter
-    )
-    from PyQt5.QtCore import Qt, QSize
-    from PyQt5.QtGui import QFont, QBrush, QColor, QAction, QCursor, QIcon
-    QT_BACKEND = "PyQt5"
+
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSpacerItem,
+    QSizePolicy, QTreeWidget, QTreeWidgetItem, QPushButton, QDialog,
+    QHeaderView, QToolButton, QMenu, QInputDialog, QMessageBox,
+    QFormLayout, QLineEdit, QLabel, QComboBox, QScrollArea, QTextEdit,
+    QGroupBox, QSplitter, QFileDialog
+)
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QFont, QBrush, QColor, QAction, QCursor, QIcon
+QT_BACKEND = "PySide6"
+
 
 class DeckWidget(QTreeWidget):
     def __init__(self, *args, **kwargs):
@@ -819,6 +810,22 @@ class NewCardDialog(QDialog):
             self.front_edit.setPlainText("")
             self.back_edit.setPlainText("")
 
+    def attach_file(self, field):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select media file",
+            "",
+            "Media files (*.png *.jpg *.jpeg *.gif *.bmp *.mp3 *.wav *.ogg *.m4a)"
+        )
+        if not path:
+            return
+        try:
+            filename = copy_media_file(path)
+        except Exception as e:
+            QMessageBox.warning(self, "Attach failed", f"Failed to copy file: {e}")
+            return
+        field.setText(filename)
+
     def rebuild_fields(self, index=None):
         while self.fields_layout.rowCount():
             self.fields_layout.removeRow(0)
@@ -833,11 +840,15 @@ class NewCardDialog(QDialog):
 
         self.field_widgets = {}
         for fname in card_type.get("fields", []):
-            line_edit = QLineEdit()
-            line_edit.setPlaceholderText(f"Enter {fname}")
-            line_edit.setMinimumWidth(220)
-            self.fields_layout.addRow(f"{fname}:", line_edit)
-            self.field_widgets[fname] = line_edit
+            le = QLineEdit()
+            attach_btn = QPushButton("Attach Image")
+
+            h = QHBoxLayout()
+            h.addWidget(le)
+            h.addWidget(attach_btn)
+            self.fields_layout.addRow(f"{fname}:", h)
+            self.field_widgets[fname] = le
+            attach_btn.clicked.connect(lambda _, field=le: self.attach_file(field))
 
         self.front_edit.setPlainText(card_type.get("template_front", "") or "")
         self.back_edit.setPlainText(card_type.get("template_back", "") or "")
