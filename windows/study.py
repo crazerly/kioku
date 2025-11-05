@@ -1,7 +1,9 @@
 import time
 import json
+import os
 
 from __init__ import LEARNING_STEPS, DAY, PLACEHOLDER_RE, convert_human_time
+from media import ALLOWED_FORMATS, media_dir
 
 try:
     from PySide6.QtWidgets import (
@@ -239,17 +241,31 @@ class StudyWindow(QDialog):
             })
         return cards
 
+    def _media_abs_path(self, filename):
+        return os.path.join(media_dir(), filename)
+
     def _render_template(self, template: str, fields: dict) -> str:
-        if not template:
-            return ""
+        def replacer(match):
+            key = match.group(1)
+            val = fields.get(key, "")
+            if not isinstance(val, str):
+                return str(val)
 
-        # Finds fields to be replaced with their values
-        # e.g. If the Front field was '1 + 1', '{{Front}}' would be replaced with '1 + 1'
-        def replacer(m):
-            key = m.group(1)
-            return str(fields.get(key, ""))
+            abs_path = self._media_abs_path(val)
+            if os.path.isfile(abs_path):
+                _, ext = os.path.splitext(val.lower())
+                if ext in ALLOWED_FORMATS:
+                    return f'<img src="file:///{abs_path}" style="width: 100px; height:auto; display:block; margin:6px 0;">'
+            return str(val)
 
-        return PLACEHOLDER_RE.sub(replacer, template)
+        html = PLACEHOLDER_RE.sub(replacer, template or "")
+        return html
+
+    def _mark_card_reviewed(self, card_id):
+        next_due = int(time.time()) + 10 * 60
+        cur = self.db_conn.cursor()
+        cur.execute("UPDATE cards SET next_due = ? WHERE id = ?", (next_due, card_id))
+        self.db_conn.commit()
 
     def _mark_card_reviewed(self, card_id):
         next_due = int(time.time()) + 10 * 60
@@ -404,4 +420,5 @@ class StudyWindow(QDialog):
             WHERE id = ?
         """, (next_due, new_interval, new_reps, new_lidx, now, card_id))
         self.db_conn.commit()
+
 
